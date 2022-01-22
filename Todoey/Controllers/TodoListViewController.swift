@@ -8,11 +8,14 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
     
     var toDoItems: Results<Item>?
     let realm = try! Realm()
+    
+    @IBOutlet weak var searchBar: UISearchBar!
     
     var selectedCategory: Category? {
         didSet {
@@ -24,10 +27,10 @@ class TodoListViewController: UITableViewController {
         
         super.viewDidLoad()
         
-        NavigationDesign().navigationSetting(naviController: self)
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+      //  NavigationDesign().navigationSetting(naviController: self)
+      //  print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
         
-        
+       
         
         //        let newItem = Item()
         //        newItem.title = "Work"
@@ -45,6 +48,31 @@ class TodoListViewController: UITableViewController {
         
     }
     
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+                navigationController?.navigationBar.prefersLargeTitles = true
+        
+        if let colorHex = selectedCategory?.color{
+            
+            title = selectedCategory!.name
+            if let naviBarcolor = UIColor(hexString: colorHex) {
+                
+            let appearance = UINavigationBarAppearance()
+                appearance.backgroundColor = UIColor(hexString: colorHex)
+                appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
+                appearance.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor: ContrastColorOf(naviBarcolor, returnFlat: true)]
+                navigationController?.navigationBar.tintColor = ContrastColorOf(naviBarcolor, returnFlat: true)
+                navigationController?.navigationBar.standardAppearance = appearance
+                navigationController?.navigationBar.compactAppearance = appearance
+                navigationController?.navigationBar.scrollEdgeAppearance = appearance
+                
+                searchBar.barTintColor = naviBarcolor
+                searchBar.searchTextField.backgroundColor = UIColor.white         
+            }
+            }
+
+    }
+    
     //MARK: - TableView Datasource methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         
@@ -53,13 +81,23 @@ class TodoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        //if toDoItems not nil, continue...
         if let item = toDoItems?[indexPath.row] {
             
             cell.textLabel?.text = item.title
             //Ternary operator ==>
             //value = condition ? valueIfTrue : valueIfFalse
             cell.accessoryType = item.done ? .checkmark : .none
+            
+            
+            if let color = UIColor(hexString: selectedCategory!.color)?
+                .darken(byPercentage:CGFloat(indexPath.row)/CGFloat(toDoItems!.count)) {
+                cell.backgroundColor = color
+                cell.textLabel?.textColor = ContrastColorOf(color, returnFlat: true)
+            }
+            
         } else {
             cell.textLabel?.text = "No Items Added"
         }
@@ -128,6 +166,20 @@ class TodoListViewController: UITableViewController {
         
         toDoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
         tableView.reloadData()
+    }
+    
+    override func updateModel(at indexPath: IndexPath) {
+        super.updateModel(at: indexPath)
+        
+        if let itemToDeletion = self.toDoItems?[indexPath.row] {
+            do {
+                try self.realm.write({
+                    self.realm.delete(itemToDeletion)
+                })
+            } catch {
+                print("Error deleting category, \(error)")
+            }
+        }
     }
 }
 
